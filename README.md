@@ -17,3 +17,6 @@
 
 ```bash
 ./run --catalog /path/to/catalog.json < request.json > response.json
+```
+
+Хахатон
