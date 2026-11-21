@@ -130,5 +130,29 @@ class TestBuyerAssistant(unittest.TestCase):
             self.assertEqual(len(option["listing_ids"]), 2)
             self.assertLessEqual(option["total_rub"], 10000)
 
+    def test_dialogue_updates_city(self):
+        requirements = _mock_llm_extract([
+            {
+                "role": "user",
+                "content": "Хочу стол в Таганроге до 10000 рублей."
+            },
+            {
+                "role": "assistant",
+                "content": "Хорошо, ищем стол в Таганроге."
+            },
+            {
+                "role": "user",
+                "content": "Нет, лучше в Ростове-на-Дону."
+            }
+        ])
+
+        self.assertEqual(
+            requirements["city_id"],
+            "rostov-na-donu"
+        )
+
+        self.assertEqual(requirements["budget_rub"], 10000)
+        self.assertEqual(requirements["categories"], ["table"])
+
 if __name__ == "__main__":
     unittest.main()

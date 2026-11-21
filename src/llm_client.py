@@ -23,14 +23,22 @@ def _mock_llm_extract(messages: List[Dict[str, str]]) -> Dict[str, Any]:
     full_text = " ".join(user_messages).lower()
 
     city_id = None
-    if "таганрог" in full_text:
-        city_id = "taganrog"
-    elif "ростов" in full_text:
-        city_id = "rostov-na-donu"
-    elif "азов" in full_text:
-        city_id = "azov"
-    elif "москв" in full_text or "краснодар" in full_text:
-        city_id = "UNKNOWN_CITY"
+
+    # Ищем последний город, который упомянул покупатель
+    for message in reversed(user_messages):
+        message_text = message.lower()
+
+        if "таганрог" in message_text:
+            city_id = "taganrog"
+        elif "ростов" in message_text:
+            city_id = "rostov-na-donu"
+        elif "азов" in message_text:
+            city_id = "azov"
+        elif "москв" in message_text or "краснодар" in message_text:
+            city_id = "UNKNOWN_CITY"
+
+        if city_id is not None:
+            break
 
     categories = []
     if "стол" in full_text:
