@@ -97,31 +97,59 @@ def _mock_llm_extract(messages: List[Dict[str, str]]) -> Dict[str, Any]:
 
     width_unit = r"(?:см|сантиметр(?:а|ов)?|м|метр(?:а|ов)?)"
 
-    max_width_match = re.search(
-        rf"(?:не\s+шире|не\s+более|до|максимум)\s*(\d+(?:[.,]\d+)?)\s*({width_unit})\b",
-        full_text,
-    )
+    cancel_width_patterns = [
+        r"ограничени\w*.*ширин\w*.*(?:убрат\w*|снят\w*|отмен\w*)",
+        r"(?:убрат\w*|снят\w*|отмен\w*).*ограничени\w*.*ширин\w*",
+        r"ширин\w*.*(?:не\s+важн\w*|не\s+принципиальн\w*|не\s+имеет\s+значени\w*)",
+        r"(?:подойдут|подойдет).*люб\w*\s+(?:ширин\w*|размер\w*)",
+    ]
 
-    if max_width_match:
-        value = float(max_width_match.group(1).replace(",", "."))
-        unit = max_width_match.group(2)
-        table_max = int(round(value * 100)) if unit == "м" or unit.startswith("метр") else int(round(value))
+    for message in user_messages:
+        message_text = message.lower()
 
-    elif re.search(
-        r"(?:не\s+шире|не\s+более|до|максимум)\s+(?:одного\s+)?метр(?:а|ов)?\b",
-        full_text,
-    ):
-        table_max = 100
+        # Проверяем, не отменил ли покупатель ограничение
+        if any(re.search(p, message_text) for p in cancel_width_patterns):
+            table_min = None
+            table_max = None
+            continue
 
-    min_width_match = re.search(
-        rf"(?:не\s+меньше|не\s+уже|от)\s*(\d+(?:[.,]\d+)?)\s*({width_unit})\b",
-        full_text,
-    )
+        # Максимальная ширина
+        max_width_match = re.search(
+            rf"(?:не\s+шире|не\s+более|до|максимум)\s*(\d+(?:[.,]\d+)?)\s*({width_unit})\b",
+            message_text,
+        )
 
-    if min_width_match:
-        value = float(min_width_match.group(1).replace(",", "."))
-        unit = min_width_match.group(2)
-        table_min = int(round(value * 100)) if unit == "м" or unit.startswith("метр") else int(round(value))
+        if max_width_match:
+            value = float(max_width_match.group(1).replace(",", "."))
+            unit = max_width_match.group(2)
+
+            table_max = (
+                int(round(value * 100))
+                if unit == "м" or unit.startswith("метр")
+                else int(round(value))
+            )
+
+        elif re.search(
+            r"(?:не\s+шире|не\s+более|до|максимум)\s+(?:одного\s+)?метр(?:а|ов)?\b",
+            message_text,
+        ):
+            table_max = 100
+
+        # Минимальная ширина
+        min_width_match = re.search(
+            rf"(?:не\s+меньше|не\s+уже|от)\s*(\d+(?:[.,]\d+)?)\s*({width_unit})\b",
+            message_text,
+        )
+
+        if min_width_match:
+            value = float(min_width_match.group(1).replace(",", "."))
+            unit = min_width_match.group(2)
+
+            table_min = (
+                int(round(value * 100))
+                if unit == "м" or unit.startswith("метр")
+                else int(round(value))
+            )
     chair_adj = True if "регулировк" in full_text else None
     lamp_max = 3300 if "тепл" in full_text or "тёпл" in full_text else None
 

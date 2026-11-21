@@ -194,5 +194,29 @@ class TestBuyerAssistant(unittest.TestCase):
             self.assertEqual(len(selected), 2)
             self.assertLessEqual(option["total_rub"], 10000)
 
+    def test_dialogue_removes_table_width_limit(self):
+        requirements = _mock_llm_extract([
+            {
+                "role": "user",
+                "content": "Нужен стол не шире 80 см в Таганроге до 10000 рублей."
+            },
+            {
+                "role": "assistant",
+                "content": "Хорошо, ищу стол шириной до 80 см."
+            },
+            {
+                "role": "user",
+                "content": "Ограничение по ширине можно убрать."
+            }
+        ])
+
+        self.assertEqual(
+            requirements["table_width"],
+            {"min": None, "max": None}
+        )
+
+        self.assertEqual(requirements["city_id"], "taganrog")
+        self.assertEqual(requirements["budget_rub"], 10000)
+
 if __name__ == "__main__":
     unittest.main()
