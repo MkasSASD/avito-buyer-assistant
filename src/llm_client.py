@@ -6,7 +6,7 @@ import urllib.error
 import urllib.request
 from typing import Any, Dict, List
 
-from src.config import err_exit, get_llm_config
+from src.config import err_exit, get_llm_config, log
 
 
 def _mock_llm_extract(messages: List[Dict[str, str]]) -> Dict[str, Any]:
@@ -64,6 +64,17 @@ def _mock_llm_extract(messages: List[Dict[str, str]]) -> Dict[str, Any]:
     }
 
 
+# Общий бюджет времени на весь запуск run: контракт даёт 120 с, оставляем запас.
+_START = time.monotonic()
+_TOTAL_DEADLINE_S = 100.0
+_MAX_ATTEMPTS = 4
+_RETRY_HTTP = (429, 502, 503)
+
+
+def _time_left() -> float:
+    return _TOTAL_DEADLINE_S - (time.monotonic() - _START)
+
+
 def call_llm_structured(
     messages: List[Dict[str, str]],
     schema_name: str,
@@ -96,39 +107,43 @@ def call_llm_structured(
         "User-Agent": cfg["user_agent"],
     }
 
-    raw_body = None
-    last_err: str = "unknown error"
-    # До 3 попыток: retry только на 429 (лимит) и 503 (шлюз недоступен).
-    for attempt in range(3):
+    last_err = "unknown error"
+    for attempt in range(_MAX_ATTEMPTS):
+        remaining = _time_left()
+        if remaining < 5:
+            err_exit(f"LLM deadline exceeded. Last error: {last_err}")
+
+        wait_s = 2 ** attempt  # 1, 2, 4 секунды между попытками
         req = urllib.request.Request(cfg["url"], data=payload_bytes, headers=headers, method="POST")
         try:
-            with urllib.request.urlopen(req, timeout=cfg["timeout"]) as resp:
+            with urllib.request.urlopen(req, timeout=min(cfg["timeout"], remaining)) as resp:
                 raw_body = resp.read().decode("utf-8")
-            break
+            data = json.loads(raw_body)
+            choices = data.get("choices") or []
+            if not choices:
+                raise ValueError("LLM response has empty 'choices'")
+            choice = choices[0]
+            if choice.get("finish_reason") != "stop":
+                raise ValueError(f"finish_reason is not 'stop': {choice.get('finish_reason')}")
+            return json.loads(choice["message"]["content"])
         except urllib.error.HTTPError as e:
             err_body = e.read().decode("utf-8", errors="replace")
             last_err = f"LLM API HTTP {e.code}: {err_body}"
-            if e.code in (429, 503) and attempt < 2:
-                time.sleep(2 ** attempt)
-                continue
-            err_exit(last_err)
-        except Exception as e:
-            err_exit(f"LLM API request failed: {e}")
+            if e.code not in _RETRY_HTTP:
+                err_exit(last_err)
+            retry_after = e.headers.get("Retry-After") if e.headers else None
+            if retry_after and retry_after.isdigit():
+                wait_s = min(int(retry_after), 20)
+        except (urllib.error.URLError, TimeoutError, ConnectionError) as e:
+            last_err = f"LLM API request failed: {e}"
+        except (ValueError, KeyError, TypeError) as e:
+            # Невалидный JSON или обрезанная генерация: одна-две повторные попытки допустимы.
+            last_err = f"Failed to parse LLM output: {e}"
 
-    if raw_body is None:
-        err_exit(last_err)
+        log(f"LLM attempt {attempt + 1}/{_MAX_ATTEMPTS} failed: {last_err}")
+        if attempt < _MAX_ATTEMPTS - 1:
+            if _time_left() < wait_s + 5:
+                break
+            time.sleep(wait_s)
 
-    try:
-        data = json.loads(raw_body)
-        choices = data.get("choices") or []
-        if not choices:
-            err_exit("LLM response has empty 'choices'")
-        choice = choices[0]
-        if choice.get("finish_reason") != "stop":
-            err_exit(f"LLM finish_reason is not 'stop': {choice.get('finish_reason')}")
-        content = choice["message"]["content"]
-        return json.loads(content)
-    except SystemExit:
-        raise
-    except Exception as e:
-        err_exit(f"Failed to parse LLM JSON output: {e}")
+    err_exit(last_err)
