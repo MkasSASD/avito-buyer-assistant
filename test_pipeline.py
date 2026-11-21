@@ -3,7 +3,7 @@ import os
 import subprocess
 import sys
 import unittest
-
+from src.llm_client import _mock_llm_extract
 
 class TestBuyerAssistant(unittest.TestCase):
     def run_cli(self, payload: dict) -> dict:
@@ -61,6 +61,48 @@ class TestBuyerAssistant(unittest.TestCase):
         self.assertIn("message", res)
         self.assertNotIn("options", res)
 
+    def test_mock_extract_table_max_width(self):
+        requirements = _mock_llm_extract([
+            {
+                "role": "user",
+                "content": "Стол не шире метра. Таганрог. До 15000 рублей."
+            }
+        ])
+
+        self.assertEqual(
+            requirements["table_width"],
+            {"min": None, "max": 100}
+        )
+        self.assertEqual(requirements["budget_rub"], 15000)
+
+    def test_max_width_excludes_unconfirmed_tables(self):
+        res = self.run_cli({
+            "messages": [{
+                "role": "user",
+                "text": "Стол не шире метра, кресло и лампа. Таганрог. До 15000 рублей."
+            }]
+        })
+
+        self.assertEqual(res["status"], "ok")
+
+        with open("data/catalog.json", encoding="utf-8") as f:
+            catalog = json.load(f)
+
+        listings = {item["id"]: item for item in catalog}
+
+        for option in res["options"]:
+            tables = [
+                listings[item_id]
+                for item_id in option["listing_ids"]
+                if listings[item_id]["category"] == "table"
+            ]
+
+            self.assertEqual(len(tables), 1)
+
+            width = tables[0].get("attributes", {}).get("width_cm")
+
+            self.assertIsNotNone(width)
+            self.assertLessEqual(width, 100)
 
 if __name__ == "__main__":
     unittest.main()
