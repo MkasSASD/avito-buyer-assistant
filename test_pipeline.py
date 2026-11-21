@@ -154,5 +154,45 @@ class TestBuyerAssistant(unittest.TestCase):
         self.assertEqual(requirements["budget_rub"], 10000)
         self.assertEqual(requirements["categories"], ["table"])
 
+    def test_dialogue_updates_categories(self):
+        messages = [
+            {
+                "role": "user",
+                "text": "Хочу стол и кресло в Таганроге до 10000 рублей."
+            },
+            {
+                "role": "assistant",
+                "text": "Хорошо, подбираю стол и кресло."
+            },
+            {
+                "role": "user",
+                "text": "Кресло не нужно, лучше лампу."
+            }
+        ]
+
+        res = self.run_cli({"messages": messages})
+
+        self.assertEqual(res["status"], "ok")
+
+        with open("data/catalog.json", encoding="utf-8") as f:
+            catalog = json.load(f)
+
+        listings = {item["id"]: item for item in catalog}
+
+        for option in res["options"]:
+            selected = [
+                listings[item_id]
+                for item_id in option["listing_ids"]
+            ]
+
+            categories = {
+                item["category"]
+                for item in selected
+            }
+
+            self.assertEqual(categories, {"table", "lamp"})
+            self.assertEqual(len(selected), 2)
+            self.assertLessEqual(option["total_rub"], 10000)
+
 if __name__ == "__main__":
     unittest.main()

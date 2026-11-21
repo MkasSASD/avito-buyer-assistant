@@ -41,12 +41,36 @@ def _mock_llm_extract(messages: List[Dict[str, str]]) -> Dict[str, Any]:
             break
 
     categories = []
-    if "стол" in full_text:
-        categories.append("table")
-    if "кресл" in full_text or "стул" in full_text:
-        categories.append("chair")
-    if "ламп" in full_text or "светильник" in full_text:
-        categories.append("lamp")
+
+    category_rules = [
+        (
+            "table",
+            r"стол",
+            r"(?:стол\w*\s+(?:не\s+нужн\w*|не\s+надо|не\s+требу\w*)|(?:не\s+нужн\w*|не\s+надо|не\s+требу\w*)\s+стол\w*|без\s+стол\w*)",
+        ),
+        (
+            "chair",
+            r"кресл|стул",
+            r"(?:кресл|стул)\w*\s+(?:не\s+нужн\w*|не\s+надо|не\s+требу\w*)|(?:не\s+нужн\w*|не\s+надо|не\s+требу\w*)\s+(?:кресл|стул)\w*|без\s+(?:кресл|стул)\w*",
+        ),
+        (
+            "lamp",
+            r"ламп|светильник",
+            r"(?:ламп|светильник)\w*\s+(?:не\s+нужн\w*|не\s+надо|не\s+требу\w*)|(?:не\s+нужн\w*|не\s+надо|не\s+требу\w*)\s+(?:ламп|светильник)\w*|без\s+(?:ламп|светильник)\w*",
+        ),
+    ]
+
+    for message in user_messages:
+        message_text = message.lower()
+
+        for category, keyword_pattern, removal_pattern in category_rules:
+            if re.search(removal_pattern, message_text):
+                if category in categories:
+                    categories.remove(category)
+
+            elif re.search(keyword_pattern, message_text):
+                if category not in categories:
+                    categories.append(category)
 
     has_unsupported = any(w in full_text for w in ["шкаф", "диван", "монитор", "тумб"])
 
