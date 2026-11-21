@@ -12,14 +12,15 @@ from src.config import err_exit, get_llm_config
 def _mock_llm_extract(messages: List[Dict[str, str]]) -> Dict[str, Any]:
     """Простая эвристика для локальной отладки без API-ключа.
 
-    Смотрим ТОЛЬКО на последнюю реплику пользователя, чтобы имитировать
-    обработку истории моделью (явное изменение условия заменяет старое).
+    Анализируем все реплики пользователя, учитывая историю диалога.
     """
-    last_user = next(
-        (m["content"] for m in reversed(messages) if m.get("role") == "user"),
-        "",
-    )
-    full_text = last_user.lower()
+    user_messages = [
+        str(m.get("content", ""))
+        for m in messages
+        if m.get("role") == "user"
+    ]
+
+    full_text = " ".join(user_messages).lower()
 
     city_id = None
     if "таганрог" in full_text:
@@ -43,10 +44,12 @@ def _mock_llm_extract(messages: List[Dict[str, str]]) -> Dict[str, Any]:
 
     budget_rub = None
 
-    m_budget = re.search(
+    budget_matches = list(re.finditer(
         r"(\d[\d\s\u00a0\u202f]*)\s*(тыс(?:яч(?:а|и)?)?\.?|к\b|руб(?:лей|ля|ль)?\.?|₽)",
         full_text,
-    )
+    ))
+
+    m_budget = budget_matches[-1] if budget_matches else None
 
     if m_budget:
         val = int(re.sub(r"\D", "", m_budget.group(1)))

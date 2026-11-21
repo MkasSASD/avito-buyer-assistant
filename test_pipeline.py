@@ -104,5 +104,31 @@ class TestBuyerAssistant(unittest.TestCase):
             self.assertIsNotNone(width)
             self.assertLessEqual(width, 100)
 
+    def test_dialogue_remembers_previous_messages(self):
+        messages = [
+            {
+                "role": "user",
+                "text": "Хочу стол и кресло в Таганроге."
+            },
+            {
+                "role": "assistant",
+                "text": "Какой у вас бюджет на весь комплект?"
+            },
+            {
+                "role": "user",
+                "text": "До 10 000 рублей."
+            }
+        ]
+
+        res = self.run_cli({"messages": messages})
+
+        self.assertEqual(res["status"], "ok")
+
+        self.assertTrue(1 <= len(res["options"]) <= 3)
+
+        for option in res["options"]:
+            self.assertEqual(len(option["listing_ids"]), 2)
+            self.assertLessEqual(option["total_rub"], 10000)
+
 if __name__ == "__main__":
     unittest.main()
