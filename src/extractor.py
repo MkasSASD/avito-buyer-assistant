@@ -104,5 +104,5 @@ def extract_requirements(
         messages=llm_messages,
         schema_name="buyer_requirements",
         json_schema=REQUIREMENTS_SCHEMA,
-        max_tokens=3000,
+        max_tokens=2000,
     )
