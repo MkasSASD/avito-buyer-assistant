@@ -28,6 +28,7 @@ PRESETS = {
 }
 
 LABELS = {"table": "Стол", "chair": "Кресло", "lamp": "Лампа"}
+HINT = "Дальше: новый запрос или цифра · /new — начать заново (сбросить диалог) · /q — выход"
 USE_COLOR = sys.stdout.isatty() and not os.environ.get("NO_COLOR")
 if USE_COLOR and os.name == "nt":
     os.system("")  # включает ANSI-цвета в консоли Windows
@@ -150,10 +151,11 @@ def main():
     print("Быстрые фразы (введите цифру):")
     for k, v in PRESETS.items():
         print(f"  {k} — {v}")
-    print("Команды: /new — начать заново, /q — выход.\n")
+    print()
 
     messages = []
     while True:
+        print(paint(HINT, "2"))
         try:
             raw = input(paint("Вы: ", "1;34")).strip()
         except (EOFError, KeyboardInterrupt):
