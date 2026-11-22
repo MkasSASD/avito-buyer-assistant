@@ -43,23 +43,38 @@ def build_clarify_questions(
     return questions
 
 
+CATEGORY_LABELS_NOMINATIVE = {
+    "table": "Стол",
+    "chair": "Кресло",
+    "lamp": "Лампа",
+}
+
+
+def _is_int(value: Any) -> bool:
+    return isinstance(value, int) and not isinstance(value, bool)
+
+
 def build_explanation(bundle: Dict[str, Any]) -> str:
+    """Объяснение строится только из структурированных полей каталога.
+
+    Название и описание объявления намеренно не используются: это свободный
+    текст продавца, и он мог бы попасть в ответ помощника.
+    """
     parts: List[str] = []
     for item in bundle["items"]:
         attrs = item.get("attributes") or {}
         cat = item.get("category")
-        title = item.get("title", "Товар")
-        price = item["price_rub"]
-        details = [f"{price} ₽"]
+        label = CATEGORY_LABELS_NOMINATIVE.get(cat, "Товар")
+        details = [f"{item['price_rub']} ₽"]
 
-        if cat == "table" and "width_cm" in attrs:
+        if cat == "table" and _is_int(attrs.get("width_cm")):
             details.append(f"ширина {attrs['width_cm']} см")
-        elif cat == "chair" and "adjustable_height" in attrs:
+        elif cat == "chair" and isinstance(attrs.get("adjustable_height"), bool):
             details.append("с регулировкой высоты" if attrs["adjustable_height"] else "без регулировки высоты")
-        elif cat == "lamp" and "color_temperature_k" in attrs:
+        elif cat == "lamp" and _is_int(attrs.get("color_temperature_k")):
             details.append(f"{attrs['color_temperature_k']} K")
 
-        parts.append(f"{title} ({', '.join(details)})")
+        parts.append(f"{label} (объявление {item['id']}: {', '.join(details)})")
 
     return f"Комплект в рамках бюджета: {'; '.join(parts)}. Итого: {bundle['total_rub']} ₽."
 
