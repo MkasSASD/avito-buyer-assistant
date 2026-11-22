@@ -14,4 +14,4 @@ venv/
 *.local
 
 # Checker
-edge_check.py
+# edge_check.py
