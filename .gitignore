@@ -12,3 +12,6 @@ venv/
 # Env / secrets
 .env
 *.local
+
+# Checker
+edge_check.py
